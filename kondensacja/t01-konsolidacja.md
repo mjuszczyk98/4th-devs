@@ -297,3 +297,175 @@ Delta: kontekst persystowany w bazie, agenty mają stany (`pending` → `running
 ### 14. Pruning kontekstu (e05) — kaskadowe podsumowanie
 
 Delta: dropped items → generowanie podsumowania przez LLM → jako system message na początku. Sesja accumuluje summary kaskadowo.
+
+---
+
+## Uzupełnienia
+
+### Typy narzędzi i ich wykonanie [e05]
+
+Kluczowa taksonomia narzędzi w pętli agenta:
+- **Sync tools** — wykonywane natychmiast w pętli (np. kalkulator)
+- **MCP tools** — identyfikowane po prefiksie `serwer__narzędzie`, wykonywane przez klienta MCP (stdio lub HTTP)
+- **Agent tools (delegation)** — spawnują agenta-dziecko z depth-guardingiem (`MAX_AGENT_DEPTH`). Wynik propaguje do rodzica
+- **Deferred tools** — brak zarejestrowanego handlera → agent przechodzi w `waiting`, czeka na `POST /deliver`
+
+### Struktury baz danych: czatbot vs system wieloagentowy [e01]
+
+**Czatbot** — dwie tabele: `conversations` (id, tytuł, status) + `messages` (id, conversation_id, role, treść).
+
+**System wieloagentowy** — trzy tabele:
+- `sessions` — sesja powiązana z użytkownikiem i agentem koordynującym (nazwa, status)
+- `agents` — instancje utworzone na podstawie szablonów; zadanie, status, postęp, powiązanie z sesją i agentem zlecającym
+- `items` — etapy interakcji: wiadomości, wywołania narzędzi, załączniki (obrazy, dokumenty)
+
+Struktura sessions/agents/items umożliwia dwukierunkową komunikację między agentami i zatwierdzanie akcji przez użytkownika.
+
+### Agent Harness — pełny system [e02]
+
+Poza samym agentem, pełny system to **Agent Harness**: system plików, sandbox do wykonywania kodu, mechaniki zarządzania kontekstem i pamięcią, komunikacja między agentami, obserwacja całego systemu. Budowa aplikacji z LLM to ~80% klasycznych aktywności, ale pozostałe ~20% to zupełnie nowa klasa problemów.
+
+### Dwa znaczenia Context Engineering [e02]
+
+1. **Poziom użytkownika** — zarządzanie kontekstem w narzędziach typu Claude Code / Cursor (restart wątków, przenoszenie informacji)
+2. **Poziom aplikacji** — kontrolowanie przebiegu interakcji, narzędzi, ich rezultatów i komunikacji między agentami. Na tym skupia się kurs
+
+### Renderowanie odpowiedzi LLM [e01]
+
+Odpowiedź LLM to seria zdarzeń (tokeny rozumowania, wywołania funkcji, obrazy, błędy). Renderowanie w czasie rzeczywistym wymaga obsługi:
+- **Streamingu markdown→HTML** — fragmenty kodu, LaTeX, tablice niekompletne w trakcie strumieniowania
+- **Biblioteki:** Streamdown, Markdown Parser ułatwiają budowanie front-endu
+- **Dynamiczne UI:** AI generuje interaktywne komponenty — standaryzowane przez MCP Apps, Apps SDK, JSON Render
+
+Kierunek: od interakcji tekstowych do dynamicznie generowanych interfejsów.
+
+### Modele open-source — podstawy [e01]
+
+- **Formaty:** GGUF (llama.cpp, cross-platform) vs MLX (Apple Silicon)
+- **Kwantyzacja:** kompresja wag (Q2→Q8). Q4/Q5 = zazwyczaj właściwy balans. Niższa precyzja = mniejszy rozmiar + szybsza inferencja, ale niższa skuteczność
+- **VRAM / Unified Memory:** model wczytywany do pamięci. Minimum ~32 GB RAM; największe modele wymagają ~512 GB
+- Testowanie: LM Studio (lokalnie) lub OpenRouter (bez instalacji)
+- Modele open-source mogą przewyższać komercyjne LLM w wyspecjalizowanych zadaniach + pełna prywatność
+
+### Dynamiczne listy narzędzi [e02]
+
+Dynamiczne dodawanie narzędzi bez psucia prompt cache — obecnie tylko Anthropic. Alternatywy:
+- Sub-agenci z osobnymi oknami kontekstu
+- Code execution sandbox (narzędzia jako pliki, tylko podstawowe w kontekście) — **Progressive Disclosure**
+- Agent musi mieć wskazówki o dostępnych zasobach — inaczej "nie wie, że wie"
+
+### OAuth w MCP [e03]
+
+Serwery MCP publiczne wymagają programistycznych ograniczeń. OAuth flow: odkrywanie metadanych → PKCE → wymiana kodu na tokeny RS → szyfrowanie → auto-refresh.
+
+### Sampling = delegacja dostępu do AI [e03]
+
+Sampling pozwala serwerowi MCP korzystać z LLM **bez własnych kluczy API** — klient (Host) posiada relację z providerem. Serwer wysyła `sampling/createMessage` z komunikatami i ograniczeniami, klient realizuje completion. Ten sam mechanizm działa dla elicitation.
+
+### Workflow jako narzędzie agenta [e04]
+
+Workflow i agent nie są "albo-albo". Workflow może stać się jednym z narzędzi w zestawie agenta — agent decyduje, czy kontekst wymaga elastyczności (agent) czy przewidywalności (workflow jako delegacja).
+
+### Streaming jako tryb wykonania agenta [e05]
+
+Dwa tryby: `runAgent` — standardowy, zwraca wynik po zakończeniu. `runAgentStream` — generator (`AsyncIterable<ProviderStreamEvent>`), yielding zdarzenia strumieniowe w trakcie. Oba dzielą logikę pętli, różnią się sposobem zwracania. Stream kończy się gdy agent wejdzie w `waiting` — wznowienie obsługuje osobne wywołanie.
+
+### Architektura wspólna przykładów multimodalnych [e04]
+
+Wszystkie 8 przykładów współdzieli architekturę:
+- `agent.js` → pętla chat/tool calls (MAX_STEPS)
+- `api.js` → Responses API client
+- `config.js` → model, instrukcje systemowe, backendy
+- `mcp/` → klient MCP (filesystem)
+- `native/` → narzędzia natywne (vision, obrazy, audio, wideo, HTML→PDF)
+- `helpers/` → logger, stats, shutdown
+- `repl.js` → interaktywna pętla REPL
+
+Rozróżnienie: `isNativeTool(name)` → natywne, reszta → MCP.
+
+### Asymetria PDF: generowanie vs przetwarzanie [e04]
+
+Generowanie PDF przez HTML→PDF (Puppeteer) jest relatywnie proste. **Przetwarzanie istniejących PDF-ów** (czytanie, nawigacja, ekstrakcja) to poważny problem biznesowy. Generowanie dokumentów jest znacznie łatwiejsze niż ich późniejsze rozumienie.
+
+### Style-guide jako konfiguracja runtime'owa [e04]
+
+Agent nie ma zasad stylu w instrukcji systemowej — czyta `style-guide.md` z systemu plików przed pierwszą akcją. Oddziela reguły stylu od kodu, pozwala modyfikować zachowanie bez zmian w instrukcjach. Ten sam wzorzec dotyczy szablonów HTML i JSON. Użytkownik dostosowuje output edytując pliki, bez dotykania kodu.
+
+### Architektura agenta autonomicznego z MCP [e03]
+
+Wzorzec: **źródło zdarzeń** (polling katalogów) → **klient MCP** (narzędzia do fs) → **pętla agenta** (LLM decyduje o kolejności). Agent otrzymuje cel, ale sam decyduje jak: wczytuje, dzieli, tłumaczy, weryfikuje, poprawia. Kluczowe: limit kroków (safety guard), historia tool calls, niezależne zarządzanie stanem per plik.
+
+### Błędy samej aplikacji vs modelu [e05]
+
+Zachowanie modelu może wynikać z **błędów aplikacji**, nie modelu: część instrukcji wczytana niewłaściwie, model otrzymuje informację o dostępie do narzędzi, z których nie może skorzystać. Każda pomyłka trudna do zauważenia w systemach wieloagentowych. Należy zapisywać i monitorować wszystkie zdarzenia, uwzględniając instrukcje systemowe i ich zmiany w trakcie interakcji.
+
+### Transformacja zapytań i nawigacja po bazie wiedzy [e02]
+
+Zapytanie użytkownika nie zawsze bezpośrednio pasuje do zasobów. Transformacja przez synonimy/powiązane zagadnienia zwiększa szansę trafienia. Model potrzebuje ogólnej wiedzy o zawartości bazy (np. `_index.md`) — bez tego nie nawiguje skutecznie. Należy rozpoznawać, czy pytanie w ogóle dotyczy bazy wiedzy — zachęcać agenta do pytań doprecyzowujących.
+
+### API vs MCP vs CLI [e02]
+
+| Aspekt | API | CLI | Function Calling / MCP |
+|--------|-----|-----|----------------------|
+| Kontrola | praktycznie brak | ograniczona | pełna |
+| Dokumentacja | eksploracja | `--help` lokalnie | wbudowana w schematy |
+| Skalowalność | dobra | trudna poza lokalnym | dobra |
+
+Proxy (warstwa między API a LLM) = adaptacja istniejącego API bez jego modyfikacji. MCP = jeden z wzorców takiego proxy.
+
+### Premise Order Matters [e02]
+
+Badanie (arxiv: 2402.08939): sama zmiana kolejności informacji w prompcie potrafi obniżyć skuteczność modelu o ~40%. "Don't Overthink it": reasoning negatywnie wpływa na proste zadania.
+
+### Mapy treści w plikach, nie w system prompt [e02]
+
+Zamiast szczegółowych instrukcji nawigacji po bazie wiedzy w instrukcji systemowej (komplikuje prompt, psuje cache), lepiej przechowywać "mapę treści" w plikach zewnętrznych (np. `_index.md`). Agent wczytuje je dopiero gdy potrzebuje.
+
+### Konfigurowalne połączenia API [e02]
+
+Narzędzie `workspace_metadata` nie jest prostym połączeniem zasobów — model decyduje, jakiego podzbioru danych potrzebuje w danym momencie, bez pobierania całości. Redukuje kroki i zużycie kontekstu.
+
+### Modele lokalne jako quality test [e03]
+
+Jeśli mały model (Qwen, GLM) obsługuje narzędzia poprawnie, interfejs jest dobrze zaprojektowany. Praktyczny test jakości projektowania narzędzi.
+
+### Deklaratywna konfiguracja serwerów MCP (`mcp.json`) [e03]
+
+Produkcyjny wzorzec: konfiguracja połączeń MCP w jednym pliku JSON, mieszane transporty (stdio + HTTP) z definicją komend, argumentów, zmiennych środowiskowych i URL-i. Klient wczytuje config, tworzy odpowiedni transport per serwer i prefixuje nazwy narzędzi.
+
+### Filozofia instrukcji agenta klasyfikującego [e04]
+
+Instrukcja oparta na **regułach rozumowania**, nie na krokach procesu: jak zbierać dowody (tylko obserwowalne cechy), jak dopasowywać (profile = wymagania minimalne), jak radzić sobie z niejednoznacznością (brak dopasowania → unclassified), jak obsługiwać kompozyty (oceniać każdy obiekt osobno). Realizacja zasady: instrukcja zależna od klasy problemów, nie od zestawu danych.
+
+### Generowanie obrazów przez kod [e04]
+
+Agenci mogą tworzyć grafiki nie tylko przez modele image-generation, ale też **pisząc kod** — wykresy, diagramy, infografiki. Obraz = wynik narzędzia (execute code), nie modelu wizyjnego. Agent nie widzi wyniku, chyba że wyposażymy go w vision.
+
+### UX odpowiedzi audio [e04]
+
+Gdy agent odpowiada w formie audio: unikać dyktowania URL-i, tabel, zaawansowanego formatowania. Treść musi być dostosowana do medium — dźwięk nie przenosi formatowania wizualnego.
+
+### Obserwowalność kosztów na produkcji [e05]
+
+Podstawa optymalizacji: obserwowanie aplikacji i zachowań użytkowników. Platformy: Langfuse, Confident AI. Proporcja na produkcji: 1 zdarzenie użytkownika : 50+ zapytań do AI. Przed pełnym wdrożeniem — testy z małą grupą testerów.
+
+### Limity środowiskowe i biznesowe [e05]
+
+Ograniczenia aplikacji generatywnych wykraczają poza modele:
+- Rozproszone bazy wiedzy, zróżnicowane formaty dokumentów
+- Niepisane, nieustrukturyzowane procesy manualne
+- Zestawy narzędzi bez API
+- Fizyczny brak dostępu do aktualnych danych
+- Rzadko pełna automatyzacja — częściej optymalizacja procesu o kilka-kilkanaście procent
+
+### Deployment produkcyjny [e05]
+
+Konkretne kroki: VPS (Ubuntu) → git/node/nginx/ufw → DNS (Cloudflare) → TLS (letsencrypt) → GitHub Actions self-hosted runner → reverse proxy nginx → sekrety w repozytorium → workflow `.yml` po push na main.
+
+### Fine-tuning i destylacja — ostateczność [e05]
+
+Gdy architektoniczne techniki nie wystarczą: fine-tuning mniejszych modeli pod konkretne zadanie, destylacja większych modeli. Obecnie rzadko stosowane — ceny i szybkość modeli Flash są wystarczające.
+
+### Obowiązki prawne na produkcji [e05]
+
+Jeśli agent może zrobić coś, czego nie powinien — aplikacja musi jasno informować, produkt zabezpieczony prawnie: regulaminy, polityka prywatności, umowy z dostawcami i użytkownikami końcowymi. Zakres detali zależy od projektu.

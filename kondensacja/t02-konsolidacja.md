@@ -304,3 +304,74 @@ Delta: kompresja kontekstu wieloetapowa. Observer serializuje wiadomości → LL
 ### 9. Sandbox z progresywnym odkrywaniem (e05)
 
 Delta: agent startuje bez znajomości narzędzi, odkrywa MCP, generuje kod JS w QuickJS. Dane operacyjne nie trafiają do kontekstu LLM.
+
+---
+
+## Uzupełnienia
+
+### Bezpieczeństwo zewnętrznego kontekstu (e02)
+
+Zewnętrzne dane dostarczane przez narzędzia mogą zmienić zachowanie agenta — równoważne brakowi walidacji formularza renderowanego jako HTML (XSS). Filtrowanie prompt injection przez LLM nie jest gwarancją bezpieczeństwa. Mitigacja: ograniczenie zestawu narzędzi (agent nie wysyła maila bez narzędzia), jawna zgoda użytkownika na akcje, walidacja plików (rozmiar, format, mime-type, źródło), linki tymczasowe [e02].
+
+### Relevant ≠ Similar (e02)
+
+Semantic search zwraca dokumenty **podobne** (similar), niekoniecznie **istotne** (relevant) z punktu widzenia zapytania. Dlatego hybryda FTS + reasoning agenta jest konieczna — samo dopasowanie wektorowe nie wystarcza [e02].
+
+### „Łączenie ze źródłem" vs „nauka ze źródła" (e03)
+
+- **Łączenie ze źródłem** — klasyczny RAG: chunki + embeddingi. Model widzi kontekst pozbawiony powiązań, przez pryzmat fragmentów.
+- **Nauka ze źródła** — dane prezentowane tak, aby agent mógł po nich nawigować (odnośniki wewnątrz dokumentów, struktura katalogów, importy). Model odkrywa powiązania, a nie tylko pasujące fragmenty.
+
+Drugie podejście występuje naturalnie w kodzie źródłowym, ale jest rzadkie poza nim — wyjątek: strony z bogatym linkowaniem wewnętrznym (Wikipedia) i prowadzone Second Brain (Obsidian, Roam) [e03].
+
+### Narzędzia — zasady przypisywania (e05)
+
+- Nie ma sztywnej reguły liczby narzędzi (10–15 to mit). Złożone API (GitHub) = jedno narzędzie CLI, prosty system = 3 osobne funkcje.
+- Współdzielenie narzędzi między agentami zmniejsza wymianę informacji, ale tworzy ryzyko: agent z ograniczonym dostępem może uznać brak wyniku za brak danych.
+- Pytaj: **czy system stanie się lepszy wraz z rozwojem modeli?** Jeśli nie — prawdopodobnie budujesz niewłaściwą rzecz [e05].
+
+### Ryzyko połączeń między narzędziami (e05)
+
+Agent z dostępem do filesystemu i Jiry może obejść ograniczenia — np. utworzyć notatkę w sekcji nieobjętej restrykcjami. Każde połączenie między narzędziami to wektor problemów. Restrykcje mogą zmniejszyć użyteczność do zera — dlatego sandbox [e05].
+
+### Sześć obszarów projektowania instrukcji (e05)
+
+| Obszar | Co adresuje |
+|--------|-------------|
+| **Ustawienia** | Nazwa, opis (dla wywołań przez innych agentów), narzędzia, uprawnienia, model |
+| **Profil** | "Osobowość", ton, techniki rozumowania — kieruje uwagę modelu niezależnie od inteligencji |
+| **Zasady** | Komunikacja, radzenie sobie z problemami, dostęp do wiedzy, zachowania awaryjne |
+| **Limity** | Aktualność wiedzy ("kiedy jest teraz?"), dynamiczne uprawnienia, kiedy odświeżać dane |
+| **Styl** | Nie kosmetyka — użyteczność. Agent tekstowy vs głosowy zachowuje się inaczej |
+| **Sesja** | Zmienne per-sesja: tożsamość użytkownika, preferencje/uprawnienia, aktywność innych agentów |
+
+### Strategie promptu przy eksploracji — dlaczego większość nie działa (e01)
+
+| Podejście | Problem |
+|-----------|---------|
+| Specyficzne reguły ("szukaj limitów przy pytaniach o okno") | Działa tylko dla jednego zapytania |
+| "Szukaj powiązanych zagadnień" | Zbyt niejednoznaczne → nadinterpretacja |
+| Przykłady few-shot | Obszerne, tylko dla wąskich specjalistów |
+| Opis wieloetapowego procesu | Wymusza niepotrzebne kroki przy prostych zapytaniach |
+
+Wniosek: nie da się uzyskać 100% skuteczności — operujemy w **obszarze prawdopodobieństwa, a nie pewności** [e01].
+
+### Workspace — role katalogów (e01)
+
+Podział na role: `notes/` (notatki), `outbox/` (zapis agenta), `inbox/` (zapis root → sub-agent). Root przekazuje dokumenty między agentami — sub-agenci nie komunikują się bezpośrednio [e01].
+
+### Chronologia w sesji (e01)
+
+Dodawanie „postępów realizacji zadania" do promptu systemowego zaburza chronologię — prompt systemowy przedstawia **starsze** fakty niż treść dalszych wiadomości. To może dezorientować model [e01].
+
+### Sekcja EFFICIENCY promptu (e01)
+
+Kluczowy wzorzec: zabrania czytania całych plików i wymaga wyczerpania wariantów słów kluczowych przed sięgnięciem po treść. Zapobiega marnowaniu tokenów [e01].
+
+### Zagnieżdżone delegowanie (e05)
+
+Subagent może sam mieć możliwość wzywania innych agentów, nie tylko komunikacji z agentem nadrzędnym. Instrukcje muszą uwzględniać reguły przekazywania zadań w głąb hierarchii [e05].
+
+### Bezpieczeństwo dekompozycji (e03)
+
+Agent generujący treść do wysyłki powinien mieć uprawnienia tylko do tworzenia szkicu. Halucynacje + prompt injection = ryzyko przekierowania odbiorców [e03].

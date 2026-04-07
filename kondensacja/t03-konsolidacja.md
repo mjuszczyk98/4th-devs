@@ -273,3 +273,103 @@ Delta: dwa narzędzia metapoznawcze, scout sub-agent, template YAML+MD. Brak nar
 ### 15. Artifacts → Render → MCP Apps (e05)
 
 Delta progresywna: pełny HTML → JSON spec z komponentami → predefiniowany UI przez protokół. Każdy krok ogranicza niedeterminizm inaczej.
+
+---
+
+## Uzupełnienia
+
+### Trzy filary monitorowania: Observability + Evals + Guardrails
+
+Pełny obraz to nie tylko observability i evals — **Guardrails** (moderacja/filtrowanie wejścia i wyjścia w czasie rzeczywistym) stanowią trzeci niezbędny element. Działają jako safety-net nawet gdy podstawowe mechanizmy nie wychwycą problemu [e01].
+
+### Offline vs Online eval
+
+Offline: przed publikacją, w CI/CD, w dev env. Online: w trakcie działania, automatyczna ocena interakcji. Ewaluacja online może pełnić rolę dodatkowego guardrailu [e01].
+
+### 5 osi optymalizacji wydajności modeli
+
+(1) liczba tokenów wejściowych (prompt, definicje narzędzi, kontekst), (2) poziom wykorzystania cache (tylko tokeny wejściowe), (3) liczba tokenów wyjściowych (skrócenie wypowiedzi + ograniczenie kroków), (4) liczba zapytań (szczególnie sekwencyjnych nieobjętych cache), (5) mniejsze modele. Sandbox + generowanie kodu łączy te osie [e02].
+
+### Kaskadowanie zdarzeń (event-driven)
+
+Wynik pracy agenta (np. przypisanie etykiety) = event = trigger dla downstream. Deterministyczne lub agentowe akcje łańcuchowe. Człowiek też może uruchamiać kaskady [e02].
+
+### Progi replanowania
+
+Replan uruchamia się automatycznie gdy: blocked ratio ≥ 35% zadań lub dowolne zadanie ma attempt ≥ 2. Patche `add_task`/`split_task`/`cancel_open_task` wymagają manual approval (chyba że `autoHuman=true`) [e02].
+
+### Audit trail dostępu do wiedzy
+
+Każde wywołanie narzędzi KB loguje: kto pytał, o co, co zwrócono (z id i scope), co zablokowano. Pozwala weryfikować poprawność izolacji post-hoc [e02].
+
+### Enrichment — agent jako węzeł konsolidujący dane
+
+Agent łączy szczątkowe informacje z wielu źródeł (kontakty, kalendarz, pogoda, mapa). Oryginalna wiadomość wzbogacana o dane z narzędzi przed dalszym przetwarzaniem. Wartość biznesowa w standaryzacji procesów, nie pojedynczych interakcjach [e03].
+
+### MCP Sampling — narzędzia wywołujące dodatkowe API
+
+Narzędzia (`listen`, `feedback`) wewnętrznie uruchamiają osobne zapytania do modeli specjalizowanych (ASR, TTS). W MCP odpowiada za to **Sampling** — odwrócona komunikacja, gdzie serwer MCP prosi klienta o wywołanie API. Jedno narzędzie może enkapsułować cały sub-pipeline, ukrywając złożoność przed pętlą agenta [e03].
+
+### Projektowanie defensywne vs ofensywne
+
+Zamiast tylko planować punkty awarii — projektuj **co dodatkowego można zrobić** (np. interfejs głosowy, akcje deterministyczne tam gdzie LLM nie jest potrzebny). Wysoka specjalizacja agenta jest akceptowalna. Jakość inputu użytkownika i onboarding to element architektury [e03].
+
+### Auto-naprawa JSON (`jsonrepair`)
+
+LLM regularnie generuje niepoprawny JSON w argumentach narzędzi. Dwuetapowe parsowanie: `JSON.parse`, a przy porażce — `jsonrepair(raw)` jako fallback. Przy naprawie doklejany hint o zachowaniu strict JSON [e03].
+
+### Obsługa przepełnienia kontekstu przez treść strony
+
+Gdy `navigate` pobiera treść przekraczającą limit kontekstu — agent zapisuje tekst do pliku i przeszukuje narzędziami `fs_search`/`fs_read` z `offset/limit`. Zasada: **nigdy nie ładuj pełnego tekstu strony do konwersacji** [e03].
+
+### Deterministyczne interfejsy dla wrażliwych operacji
+
+Dla operacji niosących ryzyko bezpieczeństwa informacji — wyodrębnić deterministyczny interfejs (programistyczny), zamiast pozostawiać to agentowi. Agent zarządza logiką, wrażliwe dane przechodzą przez kod [e03].
+
+### Ewaluacja bez system promptu — walidacja samo-opisowości narzędzi
+
+Scenariusze eval uruchamiane niemal bez wiadomości systemowej — cel: sprawdzić, czy opisy narzędzi i schematy są wystarczające same w sobie. Jeśli agent bez instrukcji radzi sobie — po wyspecjalizowaniu poradzi lepiej. Walidacja jakości `.describe()` w schematach [e04].
+
+### Mock client jako warunek offline eval
+
+Pełny mock client na statycznych danych syntetycznych z flagą przełączającą między real API a mockiem. Ewaluacje w pełni deterministyczne, bez dostępu do zewnętrznych kont [e04].
+
+### `.describe()` na każdym polu Zod — jedyne źródło wiedzy modelu
+
+Opis trafia do JSON Schema jako `description` — jest jedynym źródłem wiedzy modelu o semantyce parametru. Bez tego model zgaduje znaczenie pól [e04].
+
+### Trzy kategorie scenario evalów
+
+**readonly** — blokuje send/modify, testuje wyszukiwanie. **safety** — weryfikuje policy enforcement (enforced draft) + assert `send_policy_enforced` + `llm-rubric` na finalText. **actions** — pełne akcje multi-step (reply/forward) [e04].
+
+### Modyfikacje z natychmiastową informacją zwrotną
+
+Po operacji modify odpowiedź zawiera `appliedAction` i `updatedState` — agent nie musi robić dodatkowego read, żeby potwierdzić efekt [e04].
+
+### Trzytypowy model pamięci (workspace awareness)
+
+| Kategoria | Lokalizacja | Zawartość |
+|-----------|-------------|-----------|
+| Epizodyczna | `memory/episodic/` | Oznaczone czasem snapshoty interakcji |
+| Faktyczna | `memory/factual/` | Trwałe fakty persystentne między sesjami |
+| Proceduralna | `memory/procedural/` | Reguły behawioralne wyuczone w czasie |
+
+`profile/user/` (identity, preferences) + `profile/agent/` (persona) = warstwa tożsamości. Workspace Index (`system/index.md`) = mapa nawigacyjna dla scouta [e05].
+
+### Szablony agentów jako YAML frontmatter w Markdown
+
+`.agent.md` z gray-matter — YAML frontmatter definiuje `name`, `model`, `tools`, treść markdown jest `systemPrompt`. Narzędzia deklarowane we frontmatter są resolve'owane. Wzorzec: agent to plik markdown, nie kod [e05].
+
+### External signal enrichment przez scouta
+
+Scout integruje zewnętrzne API (np. pogoda z Open-Meteo) automatycznie gdy cel lub wiadomość zawiera słowa kluczowe. Scout nie tylko czyta pliki, ale wzbogaca kontekst o sygnały z zewnętrznych źródeł [e05].
+
+### Teoretyczne kotwice
+
+- **"Śniące maszyny" (Karpathy):** LLM jako maszyna snująca — wszystko jest "halucynacją", która czasem sprzyja. Przesuwa perspektywę z "eliminuj halucynacje" na "kieruj snem modelu".
+- **Cognitive Architectures for Language Agents** (arxiv 2309.02427): przejście od "spełniania założeń" do "stwarzania warunków" powstawania zachowań.
+- **Theory of Mind** (arxiv 2505.00026): modele od GPT-4 demonstrują zdolności wnioskowania o stanach mentalnych — podstawa mechanik inteligencji emocjonalnej [e05].
+
+### Ograniczenia modeli przy generalizacji instrukcji
+
+Nawet modele z rozwiniętym PE zawodzą przy silnej generalizacji instrukcji agenta awareness. Rola człowieka jako projektanta warunków (nie zachowań) pozostaje kluczowa — LLM jest partnerem w procesie, nie jego zastępstwem [e05].

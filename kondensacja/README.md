@@ -8,7 +8,8 @@ kondensacja/
 ├── s01e01.md .. s01e05.md       ← Tydzień 1: lekcje (szczegółowe)
 ├── s02e01.md .. s02e05.md       ← Tydzień 2: lekcje (szczegółowe)
 ├── s03e01.md .. s03e05.md       ← Tydzień 3: lekcje (szczegółowe)
-├── s04e01.md .. s04e02.md       ← Tydzień 4: lekcje (dotychczasowe)
+├── s04e01.md .. s04e05.md       ← Tydzień 4: lekcje (kompletne)
+├── s05e01.md .. s05e02.md       ← Tydzień 5: lekcje (dotychczasowe)
 ├── t01-konsolidacja.md          ← Tydzień 1: konsolidacja tematyczna
 ├── t02-konsolidacja.md          ← Tydzień 2: konsolidacja tematyczna
 ├── t03-konsolidacja.md          ← Tydzień 3: konsolidacja tematyczna
@@ -60,8 +61,16 @@ kondensacja/
 |--------|-------|------|
 | e01 | Wdrożenia rozwiązań AI | s04e01.md |
 | e02 | Aktywna współpraca z AI | s04e02.md |
+| e03 | Kontekstowa współpraca z AI | s04e03.md |
+| e04 | Projektowanie własnej bazy wiedzy dla AI | s04e04.md |
+| e05 | Projektowanie rozwiązań wewnątrzfirmowych | s04e05.md |
 
-### Tydzień 5: (nadchodzący)
+### Tydzień 5: Architektura i zestaw narzędzi (niekompletny)
+
+| Lekcja | Temat | Plik |
+|--------|-------|------|
+| e01 | Architektura | s05e01.md |
+| e02 | Zestaw narzędzi | s05e02.md |
 
 ---
 
