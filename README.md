@@ -478,3 +478,28 @@ LIVEKIT_API_SECRET=your_api_secret
 ```
 
 Voice stack is resolved automatically from available keys: `GOOGLE_API_KEY` / `GEMINI_API_KEY` → Gemini Realtime; `ELEVEN_API_KEY` + `OPENAI_API_KEY` → OpenAI LLM + ElevenLabs TTS; `OPENAI_API_KEY` alone → full OpenAI stack.
+
+## Lesson 23
+
+| Example | Run | Description |
+|---------|-----|-------------|
+| `05_03_autoprompt` | `npm run lesson23:autoprompt` | Automated prompt optimization loop with LLM judge, candidate generation, and train/verify split |
+| `05_03_ax` | `npm run lesson23:ax` | Email classifier with Ax (DSPy for TypeScript), few-shot examples, and BootstrapFewShot optimization |
+| `05_03_coding` | `npm run lesson23:coding` | Coding agent with MCP file tools, conversation memory compaction, and reasoning |
+
+Install dependencies:
+
+```bash
+npm run lesson23:install
+```
+
+`05_03_autoprompt` is a pure-Node prompt optimizer — give it a seed prompt, test cases, and a JSON schema; it hill-climbs to the best prompt via an LLM judge:
+
+```bash
+npm run lesson23:autoprompt:demo     # optimize the demo project
+npm run lesson23:autoprompt:verify   # verify on holdout cases
+```
+
+`05_03_ax` uses the [Ax](https://github.com/ax-llm/ax) framework. Run `npm run lesson23:ax:optimize` to bootstrap few-shot demos, then `npm run lesson23:ax` to classify with optimized examples.
+
+`05_03_coding` uses `files-mcp` for filesystem access. It reads the shared repo-level `.env` through the workspace `config.js`, so it can run with either `OPENAI_API_KEY` or `OPENROUTER_API_KEY`.
