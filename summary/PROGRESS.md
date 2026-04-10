@@ -47,14 +47,14 @@ Finalny krok (po wszystkich 25 lekcjach): decyzja z użytkownikiem czy rozbić `
 | 7 | s04e04, s04e05, s05e01 | ✅ done |
 | 8 | s05e02, s05e03, s05e04 | ✅ done |
 | 9 | s05e05 | ✅ done |
-| finał | konsolidacja konceptów | ⏳ pending |
+| finał | konsolidacja konceptów | ✅ done |
 
 ## Stan
 
 - **Ukończone summaries**: s01e01–s01e05, s02e01–s02e05, s03e01–s03e05, s04e01–s04e05, s05e01–s05e05 (ALL)
 - **Ukończone concepts/_raw**: s01e01–s01e05, s02e01–s02e05, s03e01–s03e05, s04e01–s04e05, s05e01–s05e05 (ALL)
 - **concepts/_working.md**: zaktualizowany po batchu 9 (wszystkie 25 lekcji)
-- **Następny krok**: finał — decyzja z użytkownikiem o konsolidacji konceptów
+- **Następny krok**: projekt zakończony
 
 ## Struktura plików
 
