@@ -1,0 +1,353 @@
+import { toChildRunReplayOutput } from '../../domain/agents/agent-types'
+import type {
+  AiMessage,
+  AiMessageContent,
+  AiProviderName,
+  AiReasoningOptions,
+} from '../../domain/ai/types'
+import type { ItemContentPart, ItemRecord } from '../../domain/runtime/item-repository'
+import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'
+import type { VisibleFileContextEntry } from '../files/file-context'
+import {
+  buildModelVisibleMessageContent,
+  groupInlineImageFilesByMessageId,
+} from './model-visible-user-content'
+
+export interface RunInteractionOverrides {
+  maxOutputTokens?: number
+  model?: string
+  modelAlias?: string
+  provider?: AiProviderName
+  reasoning?: AiReasoningOptions
+  temperature?: number
+}
+
+export const toTextContent = (text: string): Extract<AiMessageContent, { type: 'text' }> => ({
+  text,
+  type: 'text',
+})
+
+const toItemTextContent = (part: ItemContentPart): Extract<AiMessageContent, { type: 'text' }> => ({
+  ...(part.thought === true ? { thought: true } : {}),
+  ...(typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0
+    ? { thoughtSignature: part.thoughtSignature }
+    : {}),
+  text: part.text,
+  type: 'text',
+})
+
+const toGoogleReasoningText = (summary: unknown): string | undefined => {
+  if (!Array.isArray(summary)) {
+    return undefined
+  }
+
+  const text = summary
+    .flatMap((part) => {
+      if (
+        typeof part === 'object' &&
+        part !== null &&
+        'text' in part &&
+        typeof part.text === 'string'
+      ) {
+        return [part.text]
+      }
+
+      return []
+    })
+    .join('')
+    .trim()
+
+  return text.length > 0 ? text : undefined
+}
+
+interface ToItemMessagesOptions {
+  provider?: AiProviderName | null
+}
+
+type ReplayFamily = 'interactions' | 'responses'
+
+const getReplayFamily = (provider: string | null | undefined): ReplayFamily | null => {
+  switch (provider) {
+    case 'openai':
+    case 'openrouter':
+      return 'responses'
+    case 'google':
+      return 'interactions'
+    default:
+      return null
+  }
+}
+
+const canReuseReasoningReplay = (
+  sourceProvider: string | null | undefined,
+  targetProvider: AiProviderName | null | undefined,
+): boolean => {
+  if (!targetProvider) {
+    return true
+  }
+
+  const sourceFamily = getReplayFamily(sourceProvider)
+  const targetFamily = getReplayFamily(targetProvider)
+
+  return sourceFamily !== null && sourceFamily === targetFamily
+}
+
+const canReuseProviderSignature = (
+  sourceProvider: string | null | undefined,
+  targetProvider: AiProviderName | null | undefined,
+): boolean => {
+  if (!targetProvider) {
+    return true
+  }
+
+  return sourceProvider === 'google' && targetProvider === 'google'
+}
+
+const shouldReuseProviderMessageId = (
+  sourceProvider: string | null | undefined,
+  targetProvider: AiProviderName | null | undefined,
+): boolean => {
+  if (!targetProvider) {
+    return true
+  }
+
+  return (
+    getReplayFamily(sourceProvider) === 'responses' &&
+    getReplayFamily(targetProvider) === 'responses'
+  )
+}
+
+export const toMappedFunctionOutputJson = (toolName: string, outputJson: string): string => {
+  if (toolName !== 'delegate_to_agent' && toolName !== 'resume_delegated_run') {
+    return outputJson
+  }
+
+  try {
+    const mapped = toChildRunReplayOutput(JSON.parse(outputJson))
+    return mapped ? JSON.stringify(mapped) : outputJson
+  } catch {
+    return outputJson
+  }
+}
+
+const toAssistantProviderMessageId = (item: ItemRecord): string | undefined => {
+  if (item.role !== 'assistant') {
+    return undefined
+  }
+
+  const providerPayload = item.providerPayload as {
+    sessionMessageId?: string | null
+    providerMessageId?: string | null
+  } | null
+
+  return providerPayload?.providerMessageId ?? providerPayload?.sessionMessageId ?? undefined
+}
+
+const readItemProvider = (item: ItemRecord): string | undefined => {
+  const providerPayload = item.providerPayload as {
+    provider?: string | null
+  } | null
+
+  return typeof providerPayload?.provider === 'string' && providerPayload.provider.length > 0
+    ? providerPayload.provider
+    : undefined
+}
+
+const toReasoningProviderItemId = (item: ItemRecord): string | undefined => {
+  if (item.type !== 'reasoning') {
+    return undefined
+  }
+
+  const providerPayload = item.providerPayload as {
+    providerItemId?: string | null
+  } | null
+
+  return typeof providerPayload?.providerItemId === 'string' &&
+    providerPayload.providerItemId.length > 0
+    ? providerPayload.providerItemId
+    : undefined
+}
+
+export const toVisibleMessages = (
+  visibleMessages: SessionMessageRecord[],
+  visibleFiles: VisibleFileContextEntry[] = [],
+): AiMessage[] => {
+  const messages: AiMessage[] = []
+  const imageFilesByMessageId = groupInlineImageFilesByMessageId(visibleFiles)
+
+  for (const message of visibleMessages) {
+    if (!message.content || message.content.length === 0) {
+      continue
+    }
+
+    const content = buildModelVisibleMessageContent(
+      message.content,
+      imageFilesByMessageId.get(message.id),
+    )
+
+    if (content.length === 0) {
+      continue
+    }
+
+    messages.push({
+      content,
+      role: message.authorKind,
+    })
+  }
+
+  return messages
+}
+
+export const toItemMessages = (
+  items: ItemRecord[],
+  options: ToItemMessagesOptions = {},
+): AiMessage[] => {
+  const messages: AiMessage[] = []
+  const functionCallNames = new Map<string, string>()
+  const functionCallSignatures = new Map<string, string>()
+
+  for (const item of items) {
+    if (item.type === 'function_call' && item.callId && item.name) {
+      functionCallNames.set(item.callId, item.name)
+
+      const sourceProvider = readItemProvider(item)
+
+      if (!canReuseProviderSignature(sourceProvider, options.provider)) {
+        continue
+      }
+
+      const providerPayload = item.providerPayload as {
+        providerSignature?: string | null
+        thoughtSignature?: string | null
+      } | null
+      const providerSignature =
+        providerPayload?.providerSignature ?? providerPayload?.thoughtSignature ?? null
+
+      if (typeof providerSignature === 'string' && providerSignature.length > 0) {
+        functionCallSignatures.set(item.callId, providerSignature)
+      }
+    }
+  }
+
+  for (const item of items) {
+    if (item.type === 'message' && item.role && item.content && item.content.length > 0) {
+      const providerMessageId =
+        item.role === 'assistant'
+          ? shouldReuseProviderMessageId(readItemProvider(item), options.provider)
+            ? toAssistantProviderMessageId(item)
+            : ((item.providerPayload as { sessionMessageId?: string | null } | null)
+                ?.sessionMessageId ?? undefined)
+          : undefined
+      const content =
+        item.role === 'user'
+          ? buildModelVisibleMessageContent(item.content)
+          : item.content.map((part) => toItemTextContent(part))
+
+      messages.push({
+        content,
+        ...(providerMessageId ? { providerMessageId } : {}),
+        role: item.role === 'developer' ? 'developer' : item.role,
+      })
+      continue
+    }
+
+    if (item.type === 'function_call' && item.callId && item.name && item.arguments) {
+      const sourceProvider = readItemProvider(item)
+      const reuseProviderSignature = canReuseProviderSignature(sourceProvider, options.provider)
+
+      messages.push({
+        content: [
+          {
+            argumentsJson: item.arguments,
+            callId: item.callId,
+            name: item.name,
+            ...(reuseProviderSignature &&
+            (item.providerPayload as { providerSignature?: string | null } | null)
+              ?.providerSignature
+              ? {
+                  providerSignature: (item.providerPayload as { providerSignature?: string })
+                    .providerSignature,
+                }
+              : {}),
+            ...(reuseProviderSignature &&
+            (item.providerPayload as { thoughtSignature?: string | null } | null)
+              ?.thoughtSignature
+              ? {
+                  thoughtSignature: (item.providerPayload as { thoughtSignature?: string })
+                    .thoughtSignature,
+                }
+              : {}),
+            type: 'function_call',
+          },
+        ],
+        role: 'assistant',
+      })
+      continue
+    }
+
+    if (item.type === 'function_call_output' && item.callId && item.output) {
+      const providerPayload = item.providerPayload as {
+        isError?: boolean
+        name?: string
+      } | null
+      const resolvedName = providerPayload?.name ?? functionCallNames.get(item.callId)
+      const providerSignature = functionCallSignatures.get(item.callId)
+
+      if (!resolvedName) {
+        continue
+      }
+
+      messages.push({
+        content: [
+          {
+            callId: item.callId,
+            isError: providerPayload?.isError,
+            name: resolvedName,
+            outputJson: toMappedFunctionOutputJson(resolvedName, item.output),
+            ...(providerSignature ? { providerSignature } : {}),
+            type: 'function_result',
+          },
+        ],
+        role: 'tool',
+      })
+      continue
+    }
+
+    if (item.type === 'reasoning' && item.summary) {
+      const providerPayload = item.providerPayload as {
+        encryptedContent?: string | null
+        provider?: string | null
+      } | null
+      const providerItemId = toReasoningProviderItemId(item)
+
+      if (!providerItemId) {
+        continue
+      }
+
+      if (!canReuseReasoningReplay(providerPayload?.provider, options.provider)) {
+        continue
+      }
+
+      messages.push({
+        content: [
+          {
+            id: providerItemId,
+            summary: item.summary,
+            ...(options.provider === 'google'
+              ? {
+                  text: toGoogleReasoningText(item.summary),
+                  thought: true,
+                }
+              : {
+                  encryptedContent: providerPayload?.encryptedContent ?? null,
+                }),
+            type: 'reasoning',
+          },
+        ],
+        role: 'assistant',
+      })
+    }
+  }
+
+  return messages
+}

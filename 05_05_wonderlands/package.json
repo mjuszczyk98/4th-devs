@@ -1,0 +1,25 @@
+{
+  "name": "wonderlands",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "dev:client": "node ./scripts/run-workspace-script.mjs dev apps/client",
+    "dev:server": "node ./scripts/run-workspace-script.mjs dev apps/server",
+    "kernel:down": "docker compose -f docker-compose.kernel.yml down",
+    "kernel:up": "node ./scripts/kernel-up.mjs",
+    "setup": "node ./setup/index.mjs",
+    "typecheck": "node ./scripts/run-workspace-script.mjs typecheck apps/server apps/client",
+    "typecheck:client": "node ./scripts/run-workspace-script.mjs typecheck apps/client",
+    "typecheck:server": "node ./scripts/run-workspace-script.mjs typecheck apps/server",
+    "test": "node ./scripts/run-workspace-script.mjs test apps/server apps/client",
+    "test:client": "node ./scripts/run-workspace-script.mjs test apps/client",
+    "test:server": "node ./scripts/run-workspace-script.mjs test apps/server",
+    "lint": "node ./scripts/run-workspace-script.mjs lint apps/server apps/client",
+    "lint:client": "node ./scripts/run-workspace-script.mjs lint apps/client",
+    "lint:server": "node ./scripts/run-workspace-script.mjs lint apps/server"
+  }
+}

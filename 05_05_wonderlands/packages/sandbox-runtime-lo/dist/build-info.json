@@ -1,0 +1,9 @@
+{
+  "entry": "./entry.mjs",
+  "generatedAt": "2026-04-07T21:02:57.281Z",
+  "notes": [
+    "script mode bootstrap is wired",
+    "bash mode uses the bundled just-bash browser bundle",
+    "package-backed jobs still require the Node compat engine"
+  ]
+}
