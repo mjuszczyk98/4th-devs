@@ -602,6 +602,10 @@ Brak ustalonych best practices — tempo zmian miesiące, nie lata. Każde wdro�
 Snapshot-based delta synchronization: sygnatura pliku = `size:mtimeMs`. Przesyłane tylko zmienione pliki. Prostsze niż hashowanie zawartości, wystarczające do detekcji zmian. Background loop z `syncInFlight` flag zapobiegającym race conditions.
 - **s04e01** — snapshot-based sync (`size:mtimeMs`), background loop, race condition prevention
 
+## Decision Mapping
+Sześć obszarów decyzyjnych mapujących każdą funkcjonalność na uzasadnienie: Użytkownik (programista → złożone narzędzia + sandbox), Treść (ręczna → AI wzbogaca, nie generuje), Format (markdown → HTML przez kod), Integracje (skills + code mode → CLI, MCP, narzędzia natywne), Publikacja (GitHub Pages, statyczny HTML, public-by-design), Dostępność (API + zdalny serwer + Mutagen). Framework stosowalny do każdego wdrożenia AI — wymusza jawne uzasadnienie każdej decyzji projektowej.
+- **s04e01** — sześć obszarów z uzasadnieniami, framework stosowalny do każdego wdrożenia
+
 ## Agent Interface Design
 Cztery komplementarne ścieżki integracji agentów (CLI, MCP hostowany, komunikatory, dedykowany UI) — system produkcyjny to kompozycja, nie wybór jednej. Kryteria decyzyjne: grupa docelowa (techniczna vs nietechniczna), ekonomia (subskrypcje vs API), złożoność (autonomia, uprawnienia, dwukierunkowa komunikacja). Interfejs determinuje resztę architektury — model, personalizację, zakres integracji.
 - **s04e02** — cztery ścieżki, kompozycja nie wybór, kryteria: grupa docelowa/ekonomia/złożoność, interfejs determinuje architekturę
@@ -706,6 +710,10 @@ Prompty review jako pliki `.md` z frontmatter: `title`, `model`, `modes`, `conte
 Projektowanie na prymitywach (zdarzenia, artefakty, items) zamiast na funkcjonalnościach (czat, pliki, obrazy). Prymitywy to najprostsze elementy z których buduje się struktury wyższego rzędu — pozwalają rozbudowę bez przebudowy gdy czatbot ewoluuje w system wieloagentowy.
 - **s05e01** — prymitywy (events, artifacts, items) vs funkcjonalności, rozbudowa bez przebudowy
 
+## AI-Resilient Architecture
+Zasady projektowania systemów w dobie AI: (1) nie buduj tam gdzie LLM szybko dogoni, (2) dynamika iteracji rzędu tygodni, nie miesięcy, (3) ostrożność przy frameworkach AI o niestabilnych fundamentach. Systemy powinny być zaprojektowane tak, by rozwój modeli je wzmacniał, nie unieważniał.
+- **s05e01** — zasady resilient design, unikanie obszarów szybko opanowywanych przez LLM, ostrożność z frameworkami
+
 ## DAG Task Scheduling
 Deterministyczny scheduler zarządzający cyklem życia zadań na dynamicznym DAG-u. Stany: todo → in_progress → done|waiting|blocked. `findReadyTasks` filtruje po statusie + zależnościach, `unblockParents` kaskadowo promote po zakończeniu dzieci. Stale task recovery resetuje `in_progress` do `todo` po awarii. Trójpoziomowa obsługa błędów: API → Actor → Task z recovery state.
 - **s05e01** — stany DAG, findReadyTasks, unblockParents, stale task recovery, trójpoziomowa obsługa błędów
@@ -751,6 +759,14 @@ Sygnatury Ax/DSPy eliminują prompt z kodu — deklaratywne `input:type -> outpu
 ## Multi-model Role Separation
 Trzy role w jednej pętli z różnymi modelami i profilami kosztowymi: execution (tani, bez reasoningu, najczęściej wywoływany), judge (mocny, high reasoning, ocena semantyczna), improver (mocny, high reasoning, diagnoza i planowanie). Rozdzielenie pozwala niezależną optymalizację kosztu vs jakości.
 - **s05e03** — trzy role (execution/judge/improver), różne modele i profile kosztowe, niezależna optymalizacja
+
+## Fundamenty vs Ekosystem
+Fundamenty modeli (transformery, autoregresja, tokenizacja) stabilne od 3 lat — zrozumienie mechanik to inwestycja długoterminowa. Ekosystem (narzędzia, API, techniki) bardzo dynamiczny. Implikacja: logika oparta na fundamentalnych mechanikach → mniejsze ryzyko deprecjacji. Logika oparta na konkretnych API/frameworkach → planuj wymienność.
+- **s05e03** — fundamenty stabilne, ekosystem dynamiczny, planuj wymienność warstw wyższych
+
+## Architecture Duality
+AI architektura jednocześnie upraszcza i komplikuje: uproszczenie przez oddelegowanie logiki do modelu (Agentic RAG < klasyczny RAG pod względem kodu), komplikacja przez środowisko agenta (sandboxy, multimodalność, długie horyzonty, bezpieczeństwo). Metafora: programowanie klasyczne = budowanie elementów linii produkcyjnej, generatywne = budowanie fabryki kształtującej te elementy.
+- **s05e03** — uproszczenie i komplikacja jednocześnie, metafora linii produkcyjnej vs fabryki
 
 ## Durable Execution
 Persist-first, execute-second: komenda zapisuje stan do DB przed wywołaniem modelu. Fail modelu = work queued, nie lost. Crash recovery z durable state. Route handler zwraca persistent data, nie ephemeral output. Fundamentalny wzorzec produkcyjnego agent runtime.
@@ -807,6 +823,10 @@ Komendy enkapsulują całe operacje biznesowe: walidacja (Zod) → auth → DB w
 Whisper halucynuje na ciszę (artefakty treningu na napisach filmowych) i przy mieszaniu języków. Nie naprawialne promptem — wymaga świadomego projektowania pipeline'u audio z guardrails na poziomie aplikacji.
 - **s05e04** — halucynacje na ciszę, artefakty napisów filmowych, mieszanie języków, guardrails aplikacyjne
 
+## Delegation as Tool Call
+`delegate_to_agent` jako natywne narzędzie — LLM sam decyduje o delegacji. W jednej transakcji: child run + child job + prywatny wątek (`threadId: null`) + dependency edge + linkowanie plików. Parent → waiting → child complete → readiness engine delivers result → parent resumes. Zagnieżdżenie wielopoziomowe jak stos wywołań. Infrastruktura orkiestracji = ta sama co dla innych tool calls.
+- **s05e04** — delegate_to_agent jako tool, transakcyjne tworzenie child run, wielopoziomowe zagnieżdżenie
+
 ## Digital Garden
 Cyfrowy ogród — strona www generowana z systemu plików markdown (frontmatter + wikilinks) pełniąca jednocześnie rolę bazy wiedzy agenta, obszaru roboczego (agent czyta/modyfikuje pliki), publikacji (wybrane treści jako www) i organizacji (tagi, wikilinks). Build pipeline: collect → parse → rewrite links → render → search (Pagefind). Auto-build na podstawie fingerprintu SHA-256. Pliki `visibility: private` chronione hasłem. Folder workspace kompatybilny z Obsidian.
 - **s05e05** — pełny build pipeline, SHA-256 fingerprint, Pagefind search, visibility: private, Obsidian-compatible
@@ -826,3 +846,7 @@ Techniczne możliwości agentów bez nawyku korzystania = zero wartości. Klucz:
 ## Technologia bez Procesu
 System agentowy z pełnym stackiem narzędzi bezużyteczny bez zdefiniowanych procesów. Wartość pojawia się dopiero przy spersonalizowanych procedurach, skryptach i cyklicznych wyzwalaczach. Heurystyka: zacząć od jednego powtarzalnego procesu, nie od architektury wszechświata.
 - **s05e05** — pełny stack bezużyteczny bez procesów, heurystyka: zacząć od jednego powtarzalnego procesu
+
+## Monorepo ze Współdzielonymi Kontraktami
+`packages/contracts` z Zod schemas → branded IDs, zero build step, source of truth dla client/server. Schematy współdzielone między backendem a frontendem — zmiana w jednym miejscu propagowana wszędzie. Typy brandowane (`RunId`, `JobId`) dają compile-time safety.
+- **s05e05** — contracts package z Zod, branded IDs, zero build step, SSOT client/server

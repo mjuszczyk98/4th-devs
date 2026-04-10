@@ -81,6 +81,30 @@ Agenci definiowani jako Markdown z YAML frontmatter (gray-matter): model, tools,
 Projektowanie na prymitywach (zdarzenia, artefakty, items) zamiast na funkcjonalnościach (czat, pliki, obrazy). Prymitywy to najprostsze elementy z których buduje się struktury wyższego rzędu — pozwalają rozbudowę bez przebudowy gdy czatbot ewoluuje w system wieloagentowy.
 - **s05e01** — prymitywy (events, artifacts, items) vs funkcjonalności, rozbudowa bez przebudowy
 
+## AI-Resilient Architecture
+Zasady projektowania systemów w dobie AI: (1) nie buduj tam gdzie LLM szybko dogoni, (2) dynamika iteracji rzędu tygodni, nie miesięcy, (3) ostrożność przy frameworkach AI o niestabilnych fundamentach. Systemy powinny być zaprojektowane tak, by rozwój modeli je wzmacniał, nie unieważniał.
+- **s05e01** — zasady resilient design, unikanie obszarów szybko opanowywanych przez LLM, ostrożność z frameworkami
+
+## Decision Mapping
+Sześć obszarów decyzyjnych mapujących każdą funkcjonalność na uzasadnienie: Użytkownik (programista → złożone narzędzia + sandbox), Treść (ręczna → AI wzbogaca, nie generuje), Format (markdown → HTML przez kod), Integracje (skills + code mode → CLI, MCP, narzędzia natywne), Publikacja (GitHub Pages, statyczny HTML, public-by-design), Dostępność (API + zdalny serwer + Mutagen). Framework stosowalny do każdego wdrożenia AI — wymusza jawne uzasadnienie każdej decyzji projektowej.
+- **s04e01** — sześć obszarów z uzasadnieniami, framework stosowalny do każdego wdrożenia
+
+## Fundamenty vs Ekosystem
+Fundamenty modeli (transformery, autoregresja, tokenizacja) stabilne od 3 lat — zrozumienie mechanik to inwestycja długoterminowa. Ekosystem (narzędzia, API, techniki) bardzo dynamiczny. Implikacja: logika oparta na fundamentalnych mechanikach → mniejsze ryzyko deprecjacji. Logika oparta na konkretnych API/frameworkach → planuj wymienność.
+- **s05e03** — fundamenty stabilne, ekosystem dynamiczny, planuj wymienność warstw wyższych
+
+## Architecture Duality
+AI architektura jednocześnie upraszcza i komplikuje: uproszczenie przez oddelegowanie logiki do modelu (Agentic RAG < klasyczny RAG pod względem kodu), komplikacja przez środowisko agenta (sandboxy, multimodalność, długie horyzonty, bezpieczeństwo). Metafora: programowanie klasyczne = budowanie elementów linii produkcyjnej, generatywne = budowanie fabryki kształtującej te elementy.
+- **s05e03** — uproszczenie i komplikacja jednocześnie, metafora linii produkcyjnej vs fabryki
+
+## Delegation as Tool Call
+`delegate_to_agent` jako natywne narzędzie — LLM sam decyduje o delegacji. W jednej transakcji: child run + child job + prywatny wątek (`threadId: null`) + dependency edge + linkowanie plików. Parent → waiting → child complete → readiness engine delivers result → parent resumes. Zagnieżdżenie wielopoziomowe jak stos wywołań. Infrastruktura orkiestracji = ta sama co dla innych tool calls.
+- **s05e04** — delegate_to_agent jako tool, transakcyjne tworzenie child run, wielopoziomowe zagnieżdżenie
+
+## Monorepo ze Współdzielonymi Kontraktami
+`packages/contracts` z Zod schemas → branded IDs, zero build step, source of truth dla client/server. Schematy współdzielone między backendem a frontendem — zmiana w jednym miejscu propagowana wszędzie. Typy brandowane (`RunId`, `JobId`) dają compile-time safety.
+- **s05e05** — contracts package z Zod, branded IDs, zero build step, SSOT client/server
+
 ## DAG Task Scheduling
 Deterministyczny scheduler zarządzający cyklem życia zadań na dynamicznym DAG-u. Stany: todo → in_progress → done|waiting|blocked. `findReadyTasks` filtruje po statusie + zależnościach, `unblockParents` kaskadowo promote po zakończeniu dzieci. Stale task recovery resetuje `in_progress` do `todo` po awarii. Trójpoziomowa obsługa błędów: API → Actor → Task z recovery state.
 - **s05e01** — stany DAG, findReadyTasks, unblockParents, stale task recovery, trójpoziomowa obsługa błędów
